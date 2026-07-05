@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0F6E56">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="kabu-record">
+<title>kabu-record 株式検証</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F3; color: #1A1A18; min-height: 100vh; }
+.header { background: #0F6E56; color: #E1F5EE; padding: 12px 16px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+.header h1 { font-size: 16px; font-weight: 600; }
+.header .date { font-size: 12px; opacity: 0.8; margin-left: auto; }
+.tabs { display: flex; background: #fff; border-bottom: 1px solid #E5E5E3; position: sticky; top: 48px; z-index: 99; }
+.tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 12px; font-weight: 500; color: #888; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab.active { color: #0F6E56; border-bottom-color: #0F6E56; }
+.section { display: none; padding: 12px; max-width: 600px; margin: 0 auto; }
+.section.active { display: block; }
+.card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.card-title { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 10px; }
+.label { font-size: 11px; color: #888; margin-bottom: 3px; }
+input[type=number], input[type=text], input[type=password] { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8px 10px; font-size: 14px; color: #1A1A18; background: #FAFAF9; -webkit-appearance: none; }
+input:focus { outline: none; border-color: #0F6E56; }
+textarea { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8px 10px; font-size: 13px; color: #1A1A18; background: #FAFAF9; resize: vertical; font-family: inherit; min-height: 60px; }
+textarea:focus { outline: none; border-color: #0F6E56; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 10px; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: #0F6E56; color: #fff; }
+.btn-primary:active { background: #085041; }
+.btn-secondary { background: #F0F0EE; color: #444; }
+.btn-small { padding: 7px 10px; font-size: 12px; border-radius: 8px; border: 1px solid #E5E5E3; background: #fff; cursor: pointer; }
+.signal-card { border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 12px; }
+.signal-card.strong { background: #FAECE7; border: 1px solid #F0997B; }
+.signal-card.buy { background: #E1F5EE; border: 1px solid #5DCAA5; }
+.signal-card.wait { background: #F5F5F3; border: 1px solid #E5E5E3; }
+.signal-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; }
+.signal-card.strong .signal-label { color: #993C1D; }
+.signal-card.buy .signal-label { color: #0F6E56; }
+.signal-card.wait .signal-label { color: #888; }
+.signal-value { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.signal-card.strong .signal-value { color: #712B13; }
+.signal-card.buy .signal-value { color: #085041; }
+.signal-card.wait .signal-value { color: #333; }
+.signal-sub { font-size: 12px; color: #666; }
+.candidate-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #F0F0EE; }
+.candidate-item:last-child { border-bottom: none; }
+.candidate-info { flex: 1; }
+.candidate-code { font-size: 13px; font-weight: 600; }
+.candidate-name { font-size: 11px; color: #888; }
+.candidate-metrics { font-size: 11px; color: #666; margin-top: 2px; }
+.badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+.badge.match { background: #E1F5EE; color: #085041; }
+.badge.nomatch { background: #F5F5F3; color: #aaa; border: 1px solid #E5E5E3; }
+.badge.strong { background: #FAECE7; color: #712B13; }
+.badge.buy { background: #E1F5EE; color: #085041; }
+.badge.wait { background: #F5F5F3; color: #888; border: 1px solid #E5E5E3; }
+.badge.status-done { background: #F5F5F3; color: #666; border: 1px solid #E5E5E3; }
+.badge.status-open { background: #FFF4DE; color: #966A16; }
+.badge.win { background: #E1F5EE; color: #085041; }
+.badge.loss { background: #FAECE7; color: #712B13; }
+.history-item { padding: 10px 0; border-bottom: 1px solid #F0F0EE; }
+.history-item:last-child { border-bottom: none; }
+.history-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.history-title { font-size: 13px; font-weight: 600; flex: 1; }
+.history-meta { font-size: 11px; color: #888; }
+.history-detail { font-size: 12px; color: #666; margin-top: 4px; }
+.settle-row { display: flex; gap: 6px; margin-top: 8px; }
+.settle-row input { flex: 1; }
+.empty { text-align: center; padding: 32px 16px; color: #aaa; font-size: 13px; }
+.win-rate-bar { height: 6px; border-radius: 3px; background: #E5E5E3; margin: 6px 0; overflow: hidden; }
+.win-rate-fill { height: 100%; border-radius: 3px; background: #1D9E75; transition: width 0.4s; }
+.metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.metric { background: #F5F5F3; border-radius: 10px; padding: 10px; text-align: center; }
+.metric-val { font-size: 18px; font-weight: 700; }
+.metric-lbl { font-size: 10px; color: #888; margin-top: 2px; }
+.disclaimer { font-size: 10px; color: #aaa; margin-top: 8px; line-height: 1.6; }
+.section-gap { height: 80px; }
+.success-msg { text-align: center; font-size: 13px; color: #0F6E56; font-weight: 500; padding: 8px; }
+.hint { font-size: 11px; color: #999; line-height: 1.6; margin-bottom: 8px; }
+select { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8px 10px; font-size: 14px; background: #FAFAF9; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+  <h1>kabu-record</h1>
+  <span class="date" id="today-date"></span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('judge', this)">判定</button>
+  <button class="tab" onclick="switchTab('record', this)">記録</button>
+  <button class="tab" onclick="switchTab('history', this)">履歴</button>
+  <button class="tab" onclick="switchTab('settings', this)">設定</button>
+</div>
+
+<!-- 判定タブ -->
+<div id="tab-judge" class="section active">
+  <div class="card">
+    <div class="card-title">① 騰落レシオ(25日)で市場タイミングを判定</div>
+    <div class="hint">nikkei225jp.com などで「騰落レシオ(25日)」の数値を確認して入力</div>
+    <div class="label">騰落レシオ(25日)</div>
+    <input type="number" id="toraku-input" placeholder="例: 78" step="0.1">
+    <div style="height:8px"></div>
+    <button class="btn btn-primary" onclick="calcToraku()">判定する</button>
+  </div>
+
+  <div id="toraku-area" style="display:none">
+    <div class="signal-card wait" id="toraku-card">
+      <div class="signal-label" id="tr-label">市場タイミング</div>
+      <div class="signal-value" id="tr-value">--</div>
+      <div class="signal-sub" id="tr-sub">--</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">② 銘柄スクリーニング（予想PER≤10.0 かつ 実績PBR≤1.0）</div>
+    <div class="hint">株タスアプリなどで確認した銘柄を追加して、条件に合うか自動チェック</div>
+    <div class="grid2">
+      <div><div class="label">銘柄コード</div><input type="text" id="c-code" placeholder="例: 7203"></div>
+      <div><div class="label">銘柄名</div><input type="text" id="c-name" placeholder="例: トヨタ自動車"></div>
+    </div>
+    <div class="grid2">
+      <div><div class="label">予想PER</div><input type="number" id="c-per" placeholder="例: 9.5" step="0.1"></div>
+      <div><div class="label">実績PBR</div><input type="number" id="c-pbr" placeholder="例: 0.8" step="0.01"></div>
+    </div>
+    <button class="btn btn-secondary" onclick="addCandidate()">候補に追加</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">候補銘柄一覧</div>
+    <div id="candidate-list"><div class="empty">まだ候補がありません</div></div>
+  </div>
+  <div class="section-gap"></div>
+</div>
+
+<!-- 記録タブ -->
+<div id="tab-record" class="section">
+  <div class="card">
+    <div class="card-title">③ 買った株を記録する</div>
+    <div class="label">候補から選択</div>
+    <select id="r-candidate" onchange="onCandidateSelect()">
+      <option value="">-- 判定タブで候補を追加してください --</option>
+    </select>
+    <div style="height:10px"></div>
+    <div class="grid2">
+      <div><div class="label">購入価格（円）</div><input type="number" id="r-price" placeholder="例: 2850" step="1"></div>
+      <div><div class="label">購入数量（株）</div><input type="number" id="r-qty" placeholder="例: 100" step="1"></div>
+    </div>
+    <div class="label">メモ</div>
+    <textarea id="r-memo" placeholder="購入理由や気づきなど"></textarea>
+    <div style="height:10px"></div>
+    <button class="btn btn-primary" onclick="recordPurchase()">Notionに記録する</button>
+    <div class="success-msg" id="record-msg" style="display:none"></div>
+    <p class="disclaimer">※記録には設定タブでの初期設定が必要です。投資判断はご自身の裁量で。</p>
+  </div>
+  <div class="section-gap"></div>
+</div>
+
+<!-- 履歴タブ -->
+<div id="tab-history" class="section">
+  <div class="card" id="stats-card" style="display:none">
+    <div class="card-title">検証成績</div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-val" id="stat-total">0</div><div class="metric-lbl">決済済み</div></div>
+      <div class="metric"><div class="metric-val" id="stat-win">0</div><div class="metric-lbl">勝ち</div></div>
+      <div class="metric"><div class="metric-val" id="stat-rate" style="color:#1D9E75;">--%</div><div class="metric-lbl">勝率</div></div>
+    </div>
+    <div class="win-rate-bar"><div class="win-rate-fill" id="win-rate-fill" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>履歴</span>
+      <button class="btn-small" onclick="loadHistory()">更新</button>
+    </div>
+    <div id="history-list"><div class="empty">「更新」を押してNotionから読み込んでください</div></div>
+  </div>
+  <div class="section-gap"></div>
+</div>
+
+<!-- 設定タブ -->
+<div id="tab-settings" class="section">
+  <div class="card">
+    <div class="card-title">Cloudflare Worker連携設定</div>
+    <div class="label">Worker URL</div>
+    <input type="text" id="s-worker" placeholder="https://kabu-record-proxy.xxxx.workers.dev">
+    <div style="height:10px"></div>
+    <div class="label">合言葉（APP_SECRET）</div>
+    <input type="password" id="s-secret" placeholder="Cloudflareに設定したものと同じ文字列">
+    <div style="height:10px"></div>
+    <div class="label">NotionデータベースID</div>
+    <input type="text" id="s-dbid" placeholder="32桁の英数字">
+    <div style="height:10px"></div>
+    <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+    <div class="success-msg" id="settings-msg" style="display:none">✓ 保存しました</div>
+    <p class="disclaimer">これらの情報はこの端末内（ブラウザのlocalStorage）にのみ保存されます。</p>
+  </div>
+  <div class="section-gap"></div>
+</div>
+
+<script>
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('ja-JP');
+
+let toraku = null;
+let candidates = [];
+
+function switchTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ---------- 設定 ----------
+function getSettings() {
+  return JSON.parse(localStorage.getItem('kr_settings') || '{}');
+}
+function loadSettingsForm() {
+  const s = getSettings();
+  document.getElementById('s-worker').value = s.workerUrl || '';
+  document.getElementById('s-secret').value = s.appSecret || '';
+  document.getElementById('s-dbid').value = s.dbId || '';
+}
+function saveSettings() {
+  const s = {
+    workerUrl: document.getElementById('s-worker').value.trim().replace(/\/$/, ''),
+    appSecret: document.getElementById('s-secret').value.trim(),
+    dbId: document.getElementById('s-dbid').value.trim(),
+  };
+  localStorage.setItem('kr_settings', JSON.stringify(s));
+  const msg = document.getElementById('settings-msg');
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 2500);
+}
+loadSettingsForm();
+
+async function notionFetch(path, method, body) {
+  const s = getSettings();
+  if (!s.workerUrl || !s.appSecret || !s.dbId) {
+    alert('設定タブでWorker URL・合言葉・データベースIDを入力して保存してください');
+    throw new Error('not configured');
+  }
+  const res = await fetch(s.workerUrl + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-App-Secret': s.appSecret },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error((data && data.message) || ('Notion APIエラー: ' + res.status));
+  }
+  return data;
+}
+
+// ---------- 判定 ----------
+function calcToraku() {
+  const v = parseFloat(document.getElementById('toraku-input').value);
+  if (isNaN(v)) { alert('騰落レシオを入力してください'); return; }
+  let cls, label, sub;
+  if (v < 80) { cls = 'strong'; label = '強い買い時'; sub = '騰落レシオ ' + v + '（80未満）— 絶対買いたいゾーン'; }
+  else if (v < 90) { cls = 'buy'; label = '買い時'; sub = '騰落レシオ ' + v + '（90未満）— 売られ過ぎ傾向'; }
+  else { cls = 'wait'; label = '様子見'; sub = '騰落レシオ ' + v + '（90以上）— 買いタイミングではない'; }
+  toraku = { value: v, label };
+  const card = document.getElementById('toraku-card');
+  card.className = 'signal-card ' + cls;
+  document.getElementById('tr-label').textContent = '市場タイミング';
+  document.getElementById('tr-value').textContent = label;
+  document.getElementById('tr-sub').textContent = sub;
+  document.getElementById('toraku-area').style.display = 'block';
+}
+
+function addCandidate() {
+  const code = document.getElementById('c-code').value.trim();
+  const name = document.getElementById('c-name').value.trim();
+  const per = parseFloat(document.getElementById('c-per').value);
+  const pbr = parseFloat(document.getElementById('c-pbr').value);
+  if (!code || isNaN(per) || isNaN(pbr)) { alert('銘柄コード・予想PER・実績PBRを入力してください'); return; }
+  const match = per <= 10.0 && pbr <= 1.0;
+  candidates.unshift({ id: Date.now(), code, name, per, pbr, match });
+  document.getElementById('c-code').value = '';
+  document.getElementById('c-name').value = '';
+  document.getElementById('c-per').value = '';
+  document.getElementById('c-pbr').value = '';
+  renderCandidates();
+  renderCandidateSelect();
+}
+
+function removeCandidate(id) {
+  candidates = candidates.filter(c => c.id !== id);
+  renderCandidates();
+  renderCandidateSelect();
+}
+
+function renderCandidates() {
+  const list = document.getElementById('candidate-list');
+  if (candidates.length === 0) {
+    list.innerHTML = '<div class="empty">まだ候補がありません</div>';
+    return;
+  }
+  list.innerHTML = '';
+  candidates.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'candidate-item';
+    div.innerHTML = `
+      <div class="candidate-info">
+        <div class="candidate-code">${c.code} ${c.name ? '　' + c.name : ''}</div>
+        <div class="candidate-metrics">予想PER ${c.per} ／ 実績PBR ${c.pbr}</div>
+      </div>
+      <span class="badge ${c.match ? 'match' : 'nomatch'}">${c.match ? '条件クリア' : '条件外'}</span>
+      <button class="btn-small" onclick="removeCandidate(${c.id})">削除</button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ---------- 記録 ----------
+function renderCandidateSelect() {
+  const sel = document.getElementById('r-candidate');
+  if (candidates.length === 0) {
+    sel.innerHTML = '<option value="">-- 判定タブで候補を追加してください --</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">-- 銘柄を選択 --</option>' +
+    candidates.map(c => `<option value="${c.id}">${c.code} ${c.name || ''}${c.match ? '（条件クリア）' : ''}</option>`).join('');
+}
+function onCandidateSelect() {}
+
+async function recordPurchase() {
+  const candId = document.getElementById('r-candidate').value;
+  const cand = candidates.find(c => String(c.id) === candId);
+  if (!cand) { alert('判定タブで銘柄を候補に追加してから選択してください'); return; }
+  const price = parseFloat(document.getElementById('r-price').value);
+  const qty = parseFloat(document.getElementById('r-qty').value);
+  if (!price || !qty) { alert('購入価格と数量を入力してください'); return; }
+  const memo = document.getElementById('r-memo').value.trim();
+  const today = new Date().toISOString().slice(0, 10);
+  const timingLabel = toraku ? toraku.label : '様子見';
+
+  const properties = {
+    "銘柄コード": { title: [{ text: { content: cand.code } }] },
+    "銘柄名": { rich_text: [{ text: { content: cand.name || '' } }] },
+    "記録日": { date: { start: today } },
+    "予想PER": { number: cand.per },
+    "実績PBR": { number: cand.pbr },
+    "市場タイミング": { select: { name: timingLabel } },
+    "ステータス": { select: { name: "購入済み" } },
+    "購入日": { date: { start: today } },
+    "購入価格": { number: price },
+    "購入数量": { number: qty },
+    "勝敗": { select: { name: "未定" } },
+    "メモ": { rich_text: [{ text: { content: memo } }] },
+  };
+  if (toraku) properties["騰落レシオ25日"] = { number: toraku.value };
+
+  const s = getSettings();
+  try {
+    await notionFetch('/v1/pages', 'POST', { parent: { database_id: s.dbId }, properties });
+    const msg = document.getElementById('record-msg');
+    msg.textContent = '✓ Notionに記録しました！';
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 3000);
+    removeCandidate(cand.id);
+    document.getElementById('r-price').value = '';
+    document.getElementById('r-qty').value = '';
+    document.getElementById('r-memo').value = '';
+  } catch (e) {
+    alert('記録に失敗しました: ' + e.message);
+  }
+}
+
+// ---------- 履歴 ----------
+async function loadHistory() {
+  const s = getSettings();
+  const list = document.getElementById('history-list');
+  list.innerHTML = '<div class="empty">読み込み中...</div>';
+  try {
+    const data = await notionFetch('/v1/databases/' + s.dbId + '/query', 'POST', {
+      sorts: [{ property: '記録日', direction: 'descending' }],
+    });
+    renderHistory(data.results || []);
+  } catch (e) {
+    list.innerHTML = '<div class="empty">読み込みに失敗しました: ' + e.message + '</div>';
+  }
+}
+
+function propText(p) { return (p && p.rich_text && p.rich_text[0]) ? p.rich_text[0].plain_text : ''; }
+function propTitle(p) { return (p && p.title && p.title[0]) ? p.title[0].plain_text : ''; }
+function propNumber(p) { return (p && typeof p.number === 'number') ? p.number : null; }
+function propSelect(p) { return (p && p.select) ? p.select.name : null; }
+function propDate(p) { return (p && p.date) ? p.date.start : null; }
+
+function renderHistory(results) {
+  const list = document.getElementById('history-list');
+  const statsCard = document.getElementById('stats-card');
+
+  if (results.length === 0) {
+    list.innerHTML = '<div class="empty">まだ履歴がありません</div>';
+    statsCard.style.display = 'none';
+    return;
+  }
+
+  const settled = results.filter(r => propSelect(r.properties['ステータス']) === '決済済み');
+  const wins = settled.filter(r => propSelect(r.properties['勝敗']) === '勝ち').length;
+  const rate = settled.length > 0 ? Math.round(wins / settled.length * 100) : 0;
+  if (settled.length > 0) {
+    statsCard.style.display = 'block';
+    document.getElementById('stat-total').textContent = settled.length;
+    document.getElementById('stat-win').textContent = wins;
+    document.getElementById('stat-rate').textContent = rate + '%';
+    document.getElementById('win-rate-fill').style.width = rate + '%';
+  } else {
+    statsCard.style.display = 'none';
+  }
+
+  list.innerHTML = '';
+  results.forEach(r => {
+    const p = r.properties;
+    const code = propTitle(p['銘柄コード']);
+    const name = propText(p['銘柄名']);
+    const status = propSelect(p['ステータス']);
+    const timing = propSelect(p['市場タイミング']);
+    const per = propNumber(p['予想PER']);
+    const pbr = propNumber(p['実績PBR']);
+    const buyPrice = propNumber(p['購入価格']);
+    const qty = propNumber(p['購入数量']);
+    const buyDate = propDate(p['購入日']);
+    const result = propSelect(p['勝敗']);
+    const profit = propNumber(p['損益']);
+    const sellPrice = propNumber(p['決済価格']);
+
+    const timingCls = timing === '強い買い時' ? 'strong' : timing === '買い時' ? 'buy' : 'wait';
+    const statusCls = status === '決済済み' ? 'status-done' : 'status-open';
+
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    let inner = `
+      <div class="history-top">
+        <span class="history-title">${code} ${name ? '　' + name : ''}</span>
+        <span class="badge ${statusCls}">${status || '--'}</span>
+        ${timing ? `<span class="badge ${timingCls}">${timing}</span>` : ''}
+      </div>
+      <div class="history-meta">購入日 ${buyDate || '--'} ／ 購入価格 ${buyPrice ?? '--'}円 × ${qty ?? '--'}株 ／ PER ${per ?? '--'} PBR ${pbr ?? '--'}</div>
+    `;
+    if (status === '決済済み') {
+      const resCls = result === '勝ち' ? 'win' : 'loss';
+      inner += `<div class="history-detail">決済価格 ${sellPrice ?? '--'}円 ／ 損益 ${profit != null ? (profit >= 0 ? '+' : '') + profit + '円' : '--'} <span class="badge ${resCls}">${result || '--'}</span></div>`;
+    } else {
+      inner += `
+        <div class="settle-row">
+          <input type="number" id="settle-price-${r.id}" placeholder="決済価格">
+          <button class="btn-small" onclick="settleRecord('${r.id}', ${buyPrice}, ${qty})">決済記録</button>
+        </div>
+      `;
+    }
+    div.innerHTML = inner;
+    list.appendChild(div);
+  });
+}
+
+async function settleRecord(pageId, buyPrice, qty) {
+  const priceInput = document.getElementById('settle-price-' + pageId);
+  const price = parseFloat(priceInput.value);
+  if (!price) { alert('決済価格を入力してください'); return; }
+  const profit = Math.round((price - buyPrice) * qty);
+  const result = profit >= 0 ? '勝ち' : '負け';
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await notionFetch('/v1/pages/' + pageId, 'PATCH', {
+      properties: {
+        "決済日": { date: { start: today } },
+        "決済価格": { number: price },
+        "損益": { number: profit },
+        "勝敗": { select: { name: result } },
+        "ステータス": { select: { name: "決済済み" } },
+      },
+    });
+    loadHistory();
+  } catch (e) {
+    alert('決済記録に失敗しました: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
