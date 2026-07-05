@@ -250,6 +250,7 @@ function renderDsCurrent() {
 loadSettingsForm();
 
 function extractTitle(obj) {
+  if (typeof obj.name === 'string' && obj.name) return obj.name;
   const arr = obj.title || (obj.properties && obj.properties.title && obj.properties.title.title) || [];
   return arr.map(t => t.plain_text || '').join('') || '(無題)';
 }
