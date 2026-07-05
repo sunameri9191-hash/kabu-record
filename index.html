@@ -157,9 +157,10 @@ select { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8p
 
   <div class="card">
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>候補銘柄一覧</span>
+      <span>候補銘柄一覧（割安度の高い順）</span>
       <button class="btn-small" onclick="clearAllCandidates()">全部クリア</button>
     </div>
+    <div class="hint">並び順の目安：グレアム・ナンバー（予想PER×実績PBR）が小さいほど割安度が高い。暗黙ROE（実績PBR÷予想PER）の目安：8%未満＝低め／8〜15%＝標準〜良好（東証平均は8%程度）／15%以上＝優良（ただし借入への依存で高くなっている場合もあるので注意）</div>
     <div id="candidate-list"><div class="empty">まだ候補がありません</div></div>
   </div>
   <div class="section-gap"></div>
@@ -461,6 +462,21 @@ function clearAllCandidates() {
   renderCandidateSelect();
 }
 
+function grahamNumber(c) { return c.per * c.pbr; }
+function impliedRoe(c) { return c.per > 0 ? (c.pbr / c.per) * 100 : null; }
+function roeClass(roe) {
+  if (roe == null) return 'wait';
+  if (roe >= 15) return 'match';
+  if (roe >= 8) return 'buy';
+  return 'nomatch';
+}
+function roeLabel(roe) {
+  if (roe == null) return 'ROE不明';
+  if (roe >= 15) return '優良';
+  if (roe >= 8) return '標準';
+  return '低め';
+}
+
 function renderCandidates() {
   const list = document.getElementById('candidate-list');
   if (candidates.length === 0) {
@@ -468,21 +484,26 @@ function renderCandidates() {
     return;
   }
   const budget = getBudget();
+  const sorted = [...candidates].sort((a, b) => grahamNumber(a) - grahamNumber(b));
   list.innerHTML = '';
-  candidates.forEach(c => {
+  sorted.forEach(c => {
     const div = document.createElement('div');
     div.className = 'candidate-item';
     const withinBudget = (budget != null && c.minInvestment != null) ? c.minInvestment <= budget : null;
     const budgetBadge = withinBudget === null ? '' :
       `<span class="badge ${withinBudget ? 'match' : 'nomatch'}">${withinBudget ? '予算内' : '予算オーバー'}</span>`;
     const investLine = c.minInvestment != null ? `　／　最低投資額 ${Math.round(c.minInvestment).toLocaleString()}円` : '';
+    const roe = impliedRoe(c);
+    const roeText = roe != null ? roe.toFixed(1) + '%' : '--';
     div.innerHTML = `
       <div class="candidate-info">
         <div class="candidate-code">${c.code} ${c.name ? '　' + c.name : ''}</div>
         <div class="candidate-metrics">予想PER ${c.per} ／ 実績PBR ${c.pbr}${investLine}</div>
+        <div class="candidate-metrics">グレアム・ナンバー ${grahamNumber(c).toFixed(2)} ／ 暗黙ROE ${roeText}</div>
       </div>
       <span class="badge ${c.match ? 'match' : 'nomatch'}">${c.match ? '条件クリア' : '条件外'}</span>
       ${budgetBadge}
+      <span class="badge ${roeClass(roe)}">ROE${roeLabel(roe)}</span>
       <button class="btn-small" onclick="removeCandidate(${c.id})">削除</button>
     `;
     list.appendChild(div);
@@ -496,8 +517,9 @@ function renderCandidateSelect() {
     sel.innerHTML = '<option value="">-- 判定タブで候補を追加してください --</option>';
     return;
   }
+  const sorted = [...candidates].sort((a, b) => grahamNumber(a) - grahamNumber(b));
   sel.innerHTML = '<option value="">-- 銘柄を選択 --</option>' +
-    candidates.map(c => `<option value="${c.id}">${c.code} ${c.name || ''}${c.match ? '（条件クリア）' : ''}</option>`).join('');
+    sorted.map(c => `<option value="${c.id}">${c.code} ${c.name || ''}${c.match ? '（条件クリア）' : ''}</option>`).join('');
 }
 function onCandidateSelect() {}
 
