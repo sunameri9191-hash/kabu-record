@@ -123,8 +123,19 @@ select { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8p
   </div>
 
   <div class="card">
-    <div class="card-title">② 銘柄スクリーニング（予想PER≤10.0 かつ 実績PBR≤1.0）</div>
-    <div class="hint">株タスアプリなどで確認した銘柄を追加して、条件に合うか自動チェック</div>
+    <div class="card-title">② みんかぶの検索結果を貼り付けて一括追加</div>
+    <a class="btn-link" href="https://minkabu.jp/stock/search" target="_blank">
+      🔍 みんかぶで銘柄検索を開く（調整後PER≤10・PBR≤1で絞り込み）
+    </a>
+    <div class="hint">検索結果ページの表を範囲選択してコピーし、下に貼り付けてね</div>
+    <textarea id="paste-area" placeholder="みんかぶの検索結果をここに貼り付け"></textarea>
+    <div style="height:8px"></div>
+    <button class="btn btn-secondary" onclick="bulkAddFromPaste()">貼り付けた内容を解析して候補に追加</button>
+    <div class="success-msg" id="paste-msg" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">銘柄を手動で1件追加</div>
     <div class="grid2">
       <div><div class="label">銘柄コード</div><input type="text" id="c-code" placeholder="例: 7203"></div>
       <div><div class="label">銘柄名</div><input type="text" id="c-name" placeholder="例: トヨタ自動車"></div>
@@ -348,6 +359,54 @@ function addCandidate() {
   document.getElementById('c-pbr').value = '';
   renderCandidates();
   renderCandidateSelect();
+}
+
+function parseMinkabuPaste(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const results = [];
+  for (let i = 0; i < lines.length; i++) {
+    const codeMatch = lines[i].match(/^(\d{4})\s*[（(]([^）)]+)[）)]$/);
+    if (!codeMatch) continue;
+    const code = codeMatch[1];
+    const name = (lines[i + 1] || '').trim();
+    let per = null, pbr = null;
+    for (let j = i + 2; j < Math.min(i + 14, lines.length); j++) {
+      if (/^\d{4}\s*[（(]/.test(lines[j])) break;
+      const ratioMatch = lines[j].match(/^([\d.]+)\s*倍$/);
+      if (ratioMatch) {
+        if (per === null) per = parseFloat(ratioMatch[1]);
+        else { pbr = parseFloat(ratioMatch[1]); break; }
+      }
+    }
+    if (code && name && per !== null && pbr !== null) {
+      results.push({ code, name, per, pbr });
+    }
+  }
+  return results;
+}
+
+function bulkAddFromPaste() {
+  const text = document.getElementById('paste-area').value;
+  const parsed = parseMinkabuPaste(text);
+  const msg = document.getElementById('paste-msg');
+  if (parsed.length === 0) {
+    msg.style.display = 'block';
+    msg.textContent = '解析できませんでした。表の形式が変わっていないか確認してください';
+    return;
+  }
+  let added = 0;
+  parsed.forEach(p => {
+    if (candidates.some(c => c.code === p.code)) return;
+    const match = p.per <= 10.0 && p.pbr <= 1.0;
+    candidates.unshift({ id: Date.now() + added, code: p.code, name: p.name, per: p.per, pbr: p.pbr, match });
+    added++;
+  });
+  renderCandidates();
+  renderCandidateSelect();
+  document.getElementById('paste-area').value = '';
+  msg.style.display = 'block';
+  msg.textContent = `✓ ${added}件を候補に追加しました（解析できた件数: ${parsed.length}件）`;
+  setTimeout(() => msg.style.display = 'none', 4000);
 }
 
 function removeCandidate(id) {
