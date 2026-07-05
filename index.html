@@ -193,11 +193,16 @@ select { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8p
     <div class="label">合言葉（APP_SECRET）</div>
     <input type="password" id="s-secret" placeholder="Cloudflareに設定したものと同じ文字列">
     <div style="height:10px"></div>
-    <div class="label">NotionデータベースID</div>
-    <input type="text" id="s-dbid" placeholder="32桁の英数字">
-    <div style="height:10px"></div>
-    <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+    <button class="btn btn-primary" onclick="saveSettings()">Worker設定を保存</button>
     <div class="success-msg" id="settings-msg" style="display:none">✓ 保存しました</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Notionデータベースの接続</div>
+    <div class="hint">下のボタンでNotion側のデータベースを自動検出します（IDを手入力する必要はありません）</div>
+    <button class="btn btn-secondary" onclick="detectDataSources()">Notionから自動検出</button>
+    <div id="ds-current" class="hint" style="margin-top:8px"></div>
+    <div id="ds-list" style="margin-top:8px"></div>
     <p class="disclaimer">これらの情報はこの端末内（ブラウザのlocalStorage）にのみ保存されます。</p>
   </div>
   <div class="section-gap"></div>
@@ -224,25 +229,75 @@ function loadSettingsForm() {
   const s = getSettings();
   document.getElementById('s-worker').value = s.workerUrl || '';
   document.getElementById('s-secret').value = s.appSecret || '';
-  document.getElementById('s-dbid').value = s.dbId || '';
+  renderDsCurrent();
 }
 function saveSettings() {
-  const s = {
-    workerUrl: document.getElementById('s-worker').value.trim().replace(/\/$/, ''),
-    appSecret: document.getElementById('s-secret').value.trim(),
-    dbId: document.getElementById('s-dbid').value.trim(),
-  };
+  const s = getSettings();
+  s.workerUrl = document.getElementById('s-worker').value.trim().replace(/\/$/, '');
+  s.appSecret = document.getElementById('s-secret').value.trim();
   localStorage.setItem('kr_settings', JSON.stringify(s));
   const msg = document.getElementById('settings-msg');
   msg.style.display = 'block';
   setTimeout(() => msg.style.display = 'none', 2500);
 }
+function renderDsCurrent() {
+  const s = getSettings();
+  const el = document.getElementById('ds-current');
+  el.textContent = s.dataSourceName
+    ? '選択中のデータベース: ' + s.dataSourceName
+    : 'まだデータベースが選択されていません';
+}
 loadSettingsForm();
+
+function extractTitle(obj) {
+  const arr = obj.title || (obj.properties && obj.properties.title && obj.properties.title.title) || [];
+  return arr.map(t => t.plain_text || '').join('') || '(無題)';
+}
+
+async function detectDataSources() {
+  const listEl = document.getElementById('ds-list');
+  listEl.innerHTML = '<div class="hint">検索中...</div>';
+  try {
+    const data = await notionFetch('/v1/search', 'POST', {
+      filter: { property: 'object', value: 'data_source' },
+      page_size: 50,
+    });
+    const results = data.results || [];
+    if (results.length === 0) {
+      listEl.innerHTML = '<div class="hint">見つかりませんでした。Notion側で「接続」にkabu-recordが追加されているか確認してください</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    results.forEach(r => {
+      const title = extractTitle(r);
+      const btn = document.createElement('button');
+      btn.className = 'btn-small';
+      btn.style.display = 'block';
+      btn.style.width = '100%';
+      btn.style.marginBottom = '6px';
+      btn.style.textAlign = 'left';
+      btn.textContent = title + '  (' + r.id.slice(0, 8) + '…)';
+      btn.onclick = () => selectDataSource(r.id, title);
+      listEl.appendChild(btn);
+    });
+  } catch (e) {
+    listEl.innerHTML = '<div class="hint">検出に失敗しました: ' + e.message + '</div>';
+  }
+}
+
+function selectDataSource(id, title) {
+  const s = getSettings();
+  s.dataSourceId = id;
+  s.dataSourceName = title;
+  localStorage.setItem('kr_settings', JSON.stringify(s));
+  document.getElementById('ds-list').innerHTML = '';
+  renderDsCurrent();
+}
 
 async function notionFetch(path, method, body) {
   const s = getSettings();
-  if (!s.workerUrl || !s.appSecret || !s.dbId) {
-    alert('設定タブでWorker URL・合言葉・データベースIDを入力して保存してください');
+  if (!s.workerUrl || !s.appSecret) {
+    alert('設定タブでWorker URLと合言葉を入力して保存してください');
     throw new Error('not configured');
   }
   const res = await fetch(s.workerUrl + path, {
@@ -331,6 +386,8 @@ function renderCandidateSelect() {
 function onCandidateSelect() {}
 
 async function recordPurchase() {
+  const s = getSettings();
+  if (!s.dataSourceId) { alert('設定タブで「Notionから自動検出」を実行し、データベースを選択してください'); return; }
   const candId = document.getElementById('r-candidate').value;
   const cand = candidates.find(c => String(c.id) === candId);
   if (!cand) { alert('判定タブで銘柄を候補に追加してから選択してください'); return; }
@@ -357,9 +414,8 @@ async function recordPurchase() {
   };
   if (toraku) properties["騰落レシオ25日"] = { number: toraku.value };
 
-  const s = getSettings();
   try {
-    await notionFetch('/v1/pages', 'POST', { parent: { database_id: s.dbId }, properties });
+    await notionFetch('/v1/pages', 'POST', { parent: { type: 'data_source_id', data_source_id: s.dataSourceId }, properties });
     const msg = document.getElementById('record-msg');
     msg.textContent = '✓ Notionに記録しました！';
     msg.style.display = 'block';
@@ -377,9 +433,10 @@ async function recordPurchase() {
 async function loadHistory() {
   const s = getSettings();
   const list = document.getElementById('history-list');
+  if (!s.dataSourceId) { list.innerHTML = '<div class="empty">設定タブで「Notionから自動検出」を実行し、データベースを選択してください</div>'; return; }
   list.innerHTML = '<div class="empty">読み込み中...</div>';
   try {
-    const data = await notionFetch('/v1/databases/' + s.dbId + '/query', 'POST', {
+    const data = await notionFetch('/v1/data_sources/' + s.dataSourceId + '/query', 'POST', {
       sorts: [{ property: '記録日', direction: 'descending' }],
     });
     renderHistory(data.results || []);
