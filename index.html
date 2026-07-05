@@ -152,7 +152,10 @@ select { width: 100%; border: 1px solid #E5E5E3; border-radius: 8px; padding: 8p
   </div>
 
   <div class="card">
-    <div class="card-title">候補銘柄一覧</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>候補銘柄一覧</span>
+      <button class="btn-small" onclick="clearAllCandidates()">全部クリア</button>
+    </div>
     <div id="candidate-list"><div class="empty">まだ候補がありません</div></div>
   </div>
   <div class="section-gap"></div>
@@ -380,9 +383,11 @@ function parseMinkabuPaste(text) {
     if (!codeMatch) continue;
     const code = codeMatch[1];
     const name = (lines[i + 1] || '').trim();
-    let per = null, pbr = null, minInvestment = null;
+    let per = null, pbr = null, minInvestment = null, recommendation = null;
     for (let j = i + 2; j < Math.min(i + 14, lines.length); j++) {
       if (/^\d{4}\s*[（(]/.test(lines[j])) break;
+      const recMatch = lines[j].match(/^(買|売|対象外)$/);
+      if (recMatch && recommendation === null) { recommendation = recMatch[1]; continue; }
       const ratioMatch = lines[j].match(/^([\d.]+)\s*倍$/);
       if (ratioMatch) {
         if (per === null) { per = parseFloat(ratioMatch[1]); continue; }
@@ -394,7 +399,7 @@ function parseMinkabuPaste(text) {
       }
     }
     if (code && name && per !== null && pbr !== null) {
-      results.push({ code, name, per, pbr, minInvestment });
+      results.push({ code, name, per, pbr, minInvestment, recommendation });
     }
   }
   return results;
@@ -414,8 +419,9 @@ function bulkAddFromPaste() {
     msg.textContent = '解析できませんでした。表の形式が変わっていないか確認してください';
     return;
   }
-  let added = 0;
+  let added = 0, skippedNotBuy = 0;
   parsed.forEach(p => {
+    if (p.recommendation !== null && p.recommendation !== '買') { skippedNotBuy++; return; }
     if (candidates.some(c => c.code === p.code)) return;
     const match = p.per <= 10.0 && p.pbr <= 1.0;
     candidates.unshift({ id: Date.now() + added, code: p.code, name: p.name, per: p.per, pbr: p.pbr, minInvestment: p.minInvestment, match });
@@ -425,12 +431,20 @@ function bulkAddFromPaste() {
   renderCandidateSelect();
   document.getElementById('paste-area').value = '';
   msg.style.display = 'block';
-  msg.textContent = `✓ ${added}件を候補に追加しました（解析できた件数: ${parsed.length}件）`;
+  msg.textContent = `✓ ${added}件を候補に追加しました（解析できた件数: ${parsed.length}件／「買」以外を除外: ${skippedNotBuy}件）`;
   setTimeout(() => msg.style.display = 'none', 4000);
 }
 
 function removeCandidate(id) {
   candidates = candidates.filter(c => c.id !== id);
+  renderCandidates();
+  renderCandidateSelect();
+}
+
+function clearAllCandidates() {
+  if (candidates.length === 0) return;
+  if (!confirm('候補銘柄を全部削除しますか？')) return;
+  candidates = [];
   renderCandidates();
   renderCandidateSelect();
 }
